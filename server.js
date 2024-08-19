@@ -10,6 +10,17 @@ app.use(express.json());
 app.use(express.urlencoded({extended:false}));
 app.use(express.text());
 
+function specialwords(data)
+{
+    const notallowed = "!@#$%^&*()_+[]{}|;':\",./<>?`~\\-=";
+    for (let i =0; i<data.length; i++){
+        if (notallowed.includes(data[i])){
+            return true;
+        }
+    }
+    return false;
+}
+
 const repo_data = [
     {
         "repo_name": "Hackathon prep",
@@ -63,13 +74,27 @@ app.get('/getallrepos', (request,response)=>{
 
 app.get('/getrepodetail',(request,response)=>{
     let name = request.query.name;
-    let specificRepo = repo_data.find(repo => repo.repo_name === name);
-    response.send(specificRepo);
+    if (name){
+        if (specialwords(name)){
+            response.status(400).send("Please avoid using special characters");
+        }
+        else{
+            let specificRepo = repo_data.find(repo => repo.repo_name === name);
+                if (specificRepo == undefined){
+                    response.status(404).send("No repo matchin provided name exists");
+                }
+                else{
+                    response.status(200).send(specificRepo);
+                }
+        }
+    }
+    else{
+        response.status(400).send("Please provide a repo name");
+    }
 })
 
 app.post('/create-repo',(request,response)=>{
     const data = request.body;
-    console.log(data);
     repo_data.push(data);
     response.status(201).send("Repo Created")
 })
