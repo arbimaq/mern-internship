@@ -1,6 +1,7 @@
 const exp = require("constants");
+const cookieParser = require("cookie-parser");
 const express = require("express");
-const { request } = require("http");
+const { request} = require("http");
 const { type } = require("os");
 const app = express();
 
@@ -9,12 +10,15 @@ const PORT = 8080;
 app.use(express.json());
 app.use(express.urlencoded({extended:false}));
 app.use(express.text());
+app.use(cookieParser());
 
-function specialwords(data)
-{
+const USERNAME = "Shurahbeel";
+const PASSWORD = "password";
+
+function specialwords(data) {
     const notallowed = "!@#$%^&*()_+[]{}|;':\",./<>?`~\\-=";
-    for (let i =0; i<data.length; i++){
-        if (notallowed.includes(data[i])){
+    for (let i = 0; i < data.length; i++) {
+        if (notallowed.includes(data[i])) {
             return true;
         }
     }
@@ -66,35 +70,61 @@ const repo_data = [
     }
 ]
 
-app.listen(PORT, ()=>console.log(`Running on the port number: ${PORT}`));
+app.listen(PORT, () => console.log(`Running on port number: ${PORT}`));
 
-app.get('/getallrepos', (request,response)=>{
-    response.send(repo_data);
-})
-
-app.get('/getrepodetail',(request,response)=>{
-    let name = request.query.name;
-    if (name){
-        if (specialwords(name)){
-            response.status(400).send("Please avoid using special characters");
-        }
-        else{
-            let specificRepo = repo_data.find(repo => repo.repo_name === name);
-                if (specificRepo == undefined){
-                    response.status(404).send("No repo matchin provided name exists");
-                }
-                else{
-                    response.status(200).send(specificRepo);
-                }
-        }
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === USERNAME && password === PASSWORD) {
+        res.cookie('auth', 'loggedin', { httpOnly: true });
+        res.status(201).send("User Successfully Logged in");
+    } else {
+        res.status(404).send("No user found with these credentials");
     }
-    else{
-        response.status(400).send("Please provide a repo name");
-    }
-})
+});
 
-app.post('/create-repo',(request,response)=>{
-    const data = request.body;
-    repo_data.push(data);
-    response.status(201).send("Repo Created")
-})
+app.get('/getallrepos', (req, res) => {
+    if (req.cookies.auth === "loggedin") {
+        res.status(200).send(repo_data); 
+    } else {
+        res.status(401).send("Unauthorized Access. Please Login");
+    }
+});
+
+app.get('/getrepodetail', (req, res) => {
+    if (req.cookies.auth === 'loggedin') {
+        let name = req.query.name;
+        if (name) {
+            if (specialwords(name)) {
+                res.status(400).send("Please avoid using special characters");
+            } else {
+                let specificRepo = repo_data.find(repo => repo.repo_name === name);
+                if (specificRepo === undefined) {
+                    res.status(404).send("No repo matching the provided name exists");
+                } else {
+                    res.status(200).send(specificRepo);
+                }
+            }
+        } else {
+            res.status(400).send("Please provide a repo name");
+        }
+    } else {
+        res.status(401).send("Unauthorized Access. Please Login");
+    }
+});
+
+app.post('/create-repo', (req, res) => {
+    if (req.cookies.auth === 'loggedin') {
+        const data = req.body;
+
+        if (specialwords(data.repo_name) || specialwords(data.repo_author) || specialwords(data.details)) {
+            res.status(400).send("Please avoid special characters in Name, Author, and Details"); 
+        } else if (typeof data.year_created !== "number" || typeof data.commits !== "number") {
+            res.status(400).send("Please use numbers when providing commits and year created"); 
+        } else {
+            repo_data.push(data);
+            res.status(201).send("Repo Created");
+        }
+    } else {
+        res.status(401).send("Unauthorized Access. Please Login");
+    }
+});
