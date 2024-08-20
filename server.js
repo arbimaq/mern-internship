@@ -15,6 +15,32 @@ app.use(cookieParser());
 const USERNAME = "Shurahbeel";
 const PASSWORD = "password";
 
+const authMiddleware = (req,res,next)=>{
+    if (req.cookies.auth === "loggedin") {
+        next();
+    } else {
+        res.status(401).send("Unauthorized Access. Please Login");
+    }
+}
+
+const repovalidation = (req,res,next)=>{
+    const data = req.body;
+    if (specialwords(data.repo_name) || specialwords(data.repo_author) || specialwords(data.details)) 
+        {
+        res.status(400).send("Please avoid special characters in Name, Author, and Details"); 
+        } 
+    else if (typeof data.year_created !== "number" || typeof data.commits !== "number") 
+        {
+        res.status(400).send("Please use numbers when providing commits and year created"); 
+        }
+    else if (!data.repo_name || !data.repo_author || !data.details || !data.year_created || !data.commits)
+    {
+        res.status(401).send("Missing Required Fields"); 
+    }
+
+    next();
+}
+
 function specialwords(data) {
     const notallowed = "!@#$%^&*()_+[]{}|;':\",./<>?`~\\-=";
     for (let i = 0; i < data.length; i++) {
@@ -74,24 +100,28 @@ app.listen(PORT, () => console.log(`Running on port number: ${PORT}`));
 
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-    if (username === USERNAME && password === PASSWORD) {
-        res.cookie('auth', 'loggedin', { httpOnly: true });
-        res.status(201).send("User Successfully Logged in");
-    } else {
-        res.status(404).send("No user found with these credentials");
+    if((username == "") && (password == ""))
+    {
+        res.status(400).send("Missing Username and Password")
     }
+    else{
+        if (username === USERNAME && password === PASSWORD) {
+            res.cookie('auth', 'loggedin', { httpOnly: true});
+            res.status(200).send("User Successfully Logged in");
+        } 
+        else 
+        {
+            res.status(401).send("Incorrect Credentials Entered");
+        }
+    }
+
 });
 
-app.get('/getallrepos', (req, res) => {
-    if (req.cookies.auth === "loggedin") {
+app.get('/getallrepos',authMiddleware ,(req, res) => {
         res.status(200).send(repo_data); 
-    } else {
-        res.status(401).send("Unauthorized Access. Please Login");
-    }
 });
 
-app.get('/getrepodetail', (req, res) => {
-    if (req.cookies.auth === 'loggedin') {
+app.get('/getrepodetail',authMiddleware ,(req, res) => {
         let name = req.query.name;
         if (name) {
             if (specialwords(name)) {
@@ -106,25 +136,11 @@ app.get('/getrepodetail', (req, res) => {
             }
         } else {
             res.status(400).send("Please provide a repo name");
-        }
-    } else {
-        res.status(401).send("Unauthorized Access. Please Login");
-    }
+        } 
 });
 
-app.post('/create-repo', (req, res) => {
-    if (req.cookies.auth === 'loggedin') {
-        const data = req.body;
-
-        if (specialwords(data.repo_name) || specialwords(data.repo_author) || specialwords(data.details)) {
-            res.status(400).send("Please avoid special characters in Name, Author, and Details"); 
-        } else if (typeof data.year_created !== "number" || typeof data.commits !== "number") {
-            res.status(400).send("Please use numbers when providing commits and year created"); 
-        } else {
-            repo_data.push(data);
-            res.status(201).send("Repo Created");
-        }
-    } else {
-        res.status(401).send("Unauthorized Access. Please Login");
-    }
+app.post('/create-repo',authMiddleware,repovalidation,(req, res) => {
+    const data = req.body;
+    repo_data.push(data);
+    res.status(201).send("Repo Created");
 });
